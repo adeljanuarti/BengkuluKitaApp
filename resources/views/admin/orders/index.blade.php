@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -105,7 +106,6 @@
             </div>
 
         @endif
-
 
         @if(session('error'))
 
@@ -217,9 +217,11 @@
                                         </span>
 
                                     @elseif($order->payment_status === 'Menunggu Verifikasi')
+
                                         <span class="inline-flex mt-2 px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
                                             Menunggu Verifikasi
                                         </span>
+
                                     @elseif($order->payment_status === 'Menunggu Pembayaran')
 
                                         <span class="inline-flex mt-2 px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-bold">
@@ -276,14 +278,39 @@
 
 
                                 {{-- ACTION --}}
-                                <td class="px-6 py-5 text-right">
+                                <td class="px-6 py-5">
 
-                                    <a
-                                        href="{{ route('admin.orders.show', $order) }}"
-                                        class="inline-flex items-center px-4 py-2 bg-[#29251f] text-white rounded-xl font-semibold hover:bg-[#8b6b45] hover:-translate-y-0.5 transition"
-                                    >
-                                        Detail →
-                                    </a>
+                                    <div class="flex items-center justify-end gap-2">
+
+                                        {{-- DETAIL --}}
+                                        <a
+                                            href="{{ route('admin.orders.show', $order) }}"
+                                            class="inline-flex items-center px-4 py-2 bg-[#29251f] text-white rounded-xl font-semibold hover:bg-[#8b6b45] transition"
+                                        >
+                                            Detail →
+                                        </a>
+
+
+                                        {{-- HAPUS --}}
+                                        <form
+                                            action="{{ route('admin.orders.destroy', $order) }}"
+                                            method="POST"
+                                            onsubmit="return confirm('Yakin ingin menghapus pesanan #{{ $order->id }}? Data yang dihapus tidak dapat dikembalikan.')"
+                                        >
+
+                                            @csrf
+                                            @method('DELETE')
+
+                                            <button
+                                                type="submit"
+                                                class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition"
+                                            >
+                                                🗑 Hapus
+                                            </button>
+
+                                        </form>
+
+                                    </div>
 
                                 </td>
 

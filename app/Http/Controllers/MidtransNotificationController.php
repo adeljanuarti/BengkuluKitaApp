@@ -9,22 +9,41 @@ use Illuminate\Http\Request;
 
 class MidtransNotificationController extends Controller
 {
-    public function __invoke(Request $request, MidtransService $midtrans): JsonResponse
-    {
+    public function __invoke(
+        Request $request,
+        MidtransService $midtrans
+    ): JsonResponse {
         $payload = $request->all();
 
         if (! $midtrans->validSignature($payload)) {
-            return response()->json(['message' => 'Invalid signature'], 403);
+            return response()->json([
+                'message' => 'Invalid signature'
+            ], 403);
         }
 
-        $order = Order::where('midtrans_order_id', $payload['order_id'] ?? '')->first();
+        $order = Order::where(
+            'midtrans_order_id',
+            $payload['order_id'] ?? ''
+        )->first();
 
         if (! $order) {
-            return response()->json(['message' => 'Order not found'], 404);
+            return response()->json([
+                'message' => 'Order not found'
+            ], 404);
+        }
+
+        $notificationAmount = (float) ($payload['gross_amount'] ?? 0);
+
+        if (abs($notificationAmount - (float) $order->total) > 0.009) {
+            return response()->json([
+                'message' => 'Amount mismatch'
+            ], 422);
         }
 
         $midtrans->applyStatus($order, $payload);
 
-        return response()->json(['message' => 'OK']);
+        return response()->json([
+            'message' => 'OK'
+        ]);
     }
 }

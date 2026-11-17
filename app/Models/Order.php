@@ -19,6 +19,7 @@ class Order extends Model
         'status',
         'payment_method',
         'payment_status',
+        'payment_proof',
         'paid_at',
         'refund_amount',
         'refund_status',

@@ -5,21 +5,32 @@ namespace App\Services;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class MidtransService
 {
+    /**
+     * Memeriksa konfigurasi Midtrans.
+     */
     public function isConfigured(): bool
     {
-        return filled(config('services.midtrans.server_key'))
-            && filled(config('services.midtrans.client_key'));
+        return !empty(config('services.midtrans.server_key'))
+            && !empty(config('services.midtrans.client_key'));
     }
 
+    /**
+     * Mengambil Client Key.
+     */
     public function clientKey(): ?string
     {
         return config('services.midtrans.client_key');
     }
 
+    /**
+     * URL Snap.js.
+     */
     public function snapJsUrl(): string
     {
         return config('services.midtrans.is_production')
@@ -27,6 +38,9 @@ class MidtransService
             : 'https://app.sandbox.midtrans.com/snap/snap.js';
     }
 
+    /**
+     * URL API Snap.
+     */
     private function snapUrl(): string
     {
         return config('services.midtrans.is_production')
@@ -34,130 +48,276 @@ class MidtransService
             : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
     }
 
+    /**
+     * URL API Status Transaksi.
+     */
     private function statusUrl(string $orderId): string
     {
-        $base = config('services.midtrans.is_production')
+        $baseUrl = config('services.midtrans.is_production')
             ? 'https://api.midtrans.com'
             : 'https://api.sandbox.midtrans.com';
 
-        return "{$base}/v2/{$orderId}/status";
+        return $baseUrl . '/v2/' . $orderId . '/status';
     }
 
-    /** Buat Snap token untuk sebuah pesanan (dan simpan di database). */
+    /**
+     * Membuat Snap Token pembayaran.
+     */
     public function createSnapToken(Order $order): string
     {
-        if (! $this->isConfigured()) {
-            throw new RuntimeException('Payment gateway belum dikonfigurasi. Isi MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY di file .env.');
+        if (!$this->isConfigured()) {
+            throw new RuntimeException(
+                'Midtrans Server Key atau Client Key belum diatur.'
+            );
         }
 
         $order->loadMissing('items.product');
 
-        $items = $order->items->map(fn ($item) => [
-            'id' => (string) $item->product_id,
-            'price' => (int) round($item->price),
-            'quantity' => (int) $item->quantity,
-            'name' => mb_substr($item->product?->name ?? 'Produk', 0, 50),
-        ])->values()->all();
+        $itemDetails = [];
 
-        $midtransOrderId = 'BK-' . $order->id . '-' . now()->format('His');
-
-        $response = Http::withBasicAuth(config('services.midtrans.server_key'), '')
-            ->acceptJson()
-            ->timeout(20)
-            ->post($this->snapUrl(), [
-                'transaction_details' => [
-                    'order_id' => $midtransOrderId,
-                    'gross_amount' => (int) round($order->total),
-                ],
-                'item_details' => $items,
-                'enabled_payments' => ['other_qris'],
-                'customer_details' => [
-                    'first_name' => mb_substr($order->customer_name, 0, 50),
-                    'phone' => $order->phone,
-                ],
-                'callbacks' => [
-                    'finish' => route('checkout.success', $order),
-                ],
-            ]);
-
-        if (! $response->successful() || ! $response->json('token')) {
-            throw new RuntimeException('Gagal membuat transaksi pembayaran. Silakan coba lagi.');
+        foreach ($order->items as $item) {
+            $itemDetails[] = [
+                'id' => (string) $item->product_id,
+                'price' => (int) round($item->price),
+                'quantity' => (int) $item->quantity,
+                'name' => mb_substr(
+                    $item->product?->name ?? 'Produk',
+                    0,
+                    50
+                ),
+            ];
         }
 
-        $order->update([
-            'midtrans_order_id' => $midtransOrderId,
-            'snap_token' => $response->json('token'),
-        ]);
+        if (empty($itemDetails)) {
+            throw new RuntimeException(
+                'Pesanan tidak memiliki detail produk.'
+            );
+        }
 
-        return $response->json('token');
+        $midtransOrderId = 'BK-' . $order->id . '-'
+            . now()->format('YmdHis') . '-'
+            . Str::lower(Str::random(6));
+
+        $payload = [
+            'transaction_details' => [
+                'order_id' => $midtransOrderId,
+                'gross_amount' => (int) round($order->total),
+            ],
+
+            'item_details' => $itemDetails,
+
+            'customer_details' => [
+                'first_name' => mb_substr(
+                    $order->customer_name ?? 'Pelanggan',
+                    0,
+                    50
+                ),
+                'phone' => $order->phone ?? '',
+            ],
+
+            'callbacks' => [
+                'finish' => route('checkout.success', $order),
+            ],
+        ];
+
+        try {
+            $response = Http::withBasicAuth(
+                config('services.midtrans.server_key'),
+                ''
+            )
+                ->acceptJson()
+                ->timeout(30)
+                ->post($this->snapUrl(), $payload);
+
+            if (
+                !$response->successful()
+                || !$response->json('token')
+            ) {
+                Log::error('Gagal membuat Snap Token Midtrans', [
+                    'order_id' => $order->id,
+                    'http_status' => $response->status(),
+                    'response' => $response->json() ?? $response->body(),
+                ]);
+
+                throw new RuntimeException(
+                    'Gagal membuat transaksi pembayaran. Periksa konfigurasi Midtrans.'
+                );
+            }
+
+            $token = $response->json('token');
+
+            $order->update([
+                'midtrans_order_id' => $midtransOrderId,
+                'snap_token' => $token,
+            ]);
+
+            return $token;
+
+        } catch (\Throwable $e) {
+            Log::error('Midtrans createSnapToken error', [
+                'order_id' => $order->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 
-    /** Verifikasi signature notifikasi dari Midtrans. */
+    /**
+     * Memvalidasi signature notifikasi Midtrans.
+     */
     public function validSignature(array $payload): bool
     {
-        $expected = hash('sha512',
-            ($payload['order_id'] ?? '')
-            . ($payload['status_code'] ?? '')
-            . ($payload['gross_amount'] ?? '')
-            . config('services.midtrans.server_key')
+        $serverKey = config('services.midtrans.server_key');
+
+        if (empty($serverKey)) {
+            return false;
+        }
+
+        $orderId = $payload['order_id'] ?? '';
+        $statusCode = $payload['status_code'] ?? '';
+        $grossAmount = $payload['gross_amount'] ?? '';
+        $signature = $payload['signature_key'] ?? '';
+
+        if (
+            !$orderId ||
+            !$statusCode ||
+            !$grossAmount ||
+            !$signature
+        ) {
+            return false;
+        }
+
+        $expectedSignature = hash(
+            'sha512',
+            $orderId . $statusCode . $grossAmount . $serverKey
         );
 
-        return hash_equals($expected, (string) ($payload['signature_key'] ?? ''));
+        return hash_equals($expectedSignature, $signature);
     }
 
-    /** Tanya status transaksi langsung ke Midtrans (dipakai saat webhook belum masuk). */
+    /**
+     * Memeriksa status transaksi langsung ke Midtrans.
+     */
     public function syncStatus(Order $order): void
     {
-        if (! $this->isConfigured() || ! $order->midtrans_order_id) {
+        if (
+            !$this->isConfigured() ||
+            empty($order->midtrans_order_id)
+        ) {
             return;
         }
 
         try {
-            $response = Http::withBasicAuth(config('services.midtrans.server_key'), '')
+            $response = Http::withBasicAuth(
+                config('services.midtrans.server_key'),
+                ''
+            )
                 ->acceptJson()
-                ->timeout(8)
-                ->get($this->statusUrl($order->midtrans_order_id));
+                ->timeout(15)
+                ->get(
+                    $this->statusUrl($order->midtrans_order_id)
+                );
 
-            if ($response->successful() && $response->json('transaction_status')) {
+            if (
+                $response->successful() &&
+                $response->json('transaction_status')
+            ) {
                 $this->applyStatus($order, $response->json());
             }
+
         } catch (\Throwable $e) {
-            report($e);
+            Log::error('Gagal memeriksa status Midtrans', [
+                'order_id' => $order->id,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 
-    /** Terapkan status transaksi Midtrans ke pesanan. */
-    public function applyStatus(Order $order, array $payload): void
-    {
-        $status = $payload['transaction_status'] ?? null;
-        $fraud = $payload['fraud_status'] ?? 'accept';
+    /**
+     * Memperbarui status pesanan berdasarkan notifikasi Midtrans.
+     */
+    public function applyStatus(
+        Order $order,
+        array $payload
+    ): void {
+        $transactionStatus = $payload['transaction_status'] ?? null;
+        $fraudStatus = $payload['fraud_status'] ?? 'accept';
 
-        DB::transaction(function () use ($order, $payload, $status, $fraud) {
-            $order = Order::whereKey($order->id)->lockForUpdate()->first();
+        DB::transaction(function () use (
+            $order,
+            $transactionStatus,
+            $fraudStatus,
+            $payload
+        ) {
+            $lockedOrder = Order::whereKey($order->id)
+                ->lockForUpdate()
+                ->first();
 
-            if (! empty($payload['payment_type'])) {
-                $order->payment_type = $payload['payment_type'];
+            if (!$lockedOrder) {
+                return;
             }
 
-            $paid = $order->payment_status === 'Dibayar';
+            if (!empty($payload['payment_type'])) {
+                $lockedOrder->payment_type = $payload['payment_type'];
+            }
 
-            if (in_array($status, ['settlement', 'capture'], true) && $fraud === 'accept') {
-                $order->payment_status = 'Dibayar';
-                $order->paid_at = $order->paid_at ?? now();
-            } elseif ($status === 'pending' && ! $paid) {
-                $order->payment_status = 'Menunggu Pembayaran';
-            } elseif (in_array($status, ['deny', 'cancel', 'expire', 'failure'], true) && ! $paid) {
-                $order->payment_status = 'Belum Dibayar';
+            $alreadyPaid =
+                $lockedOrder->payment_status === 'Dibayar';
 
-                if ($order->status !== 'Dibatalkan') {
-                    $order->status = 'Dibatalkan';
-                    foreach ($order->items()->with('product')->get() as $item) {
-                        $item->product?->increment('stock', $item->quantity);
+            // Pembayaran berhasil.
+            if (
+                in_array(
+                    $transactionStatus,
+                    ['settlement', 'capture'],
+                    true
+                ) &&
+                $fraudStatus === 'accept'
+            ) {
+                $lockedOrder->payment_status = 'Dibayar';
+
+                if (!$lockedOrder->paid_at) {
+                    $lockedOrder->paid_at = now();
+                }
+            }
+
+            // Pembayaran masih menunggu.
+            elseif (
+                $transactionStatus === 'pending' &&
+                !$alreadyPaid
+            ) {
+                $lockedOrder->payment_status =
+                    'Menunggu Pembayaran';
+            }
+
+            // Pembayaran ditolak atau kedaluwarsa.
+            elseif (
+                in_array(
+                    $transactionStatus,
+                    ['deny', 'cancel', 'expire', 'failure'],
+                    true
+                ) &&
+                !$alreadyPaid
+            ) {
+                $lockedOrder->payment_status = 'Belum Dibayar';
+
+                if ($lockedOrder->status !== 'Dibatalkan') {
+                    $lockedOrder->status = 'Dibatalkan';
+
+                    $lockedOrder->loadMissing('items.product');
+
+                    foreach ($lockedOrder->items as $item) {
+                        if ($item->product) {
+                            $item->product->increment(
+                                'stock',
+                                $item->quantity
+                            );
+                        }
                     }
                 }
             }
 
-            $order->save();
+            $lockedOrder->save();
         });
     }
 }

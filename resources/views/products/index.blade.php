@@ -336,7 +336,7 @@
                                     </p>
 
                                     <p class="text-xl font-black text-[#8b6b45]">
-                                       number_format($product->price, 0, ',', '.')
+                                      Rp {{ number_format($product->price, 0, ',', '.') }}
                                     </p>
                                 </div>
 

@@ -11,12 +11,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->validateCsrfTokens(except: ['midtrans/notification']);
 
-        $middleware->alias([
-            'admin' => \App\Http\Middleware\AdminMiddleware::class,
-        ]);
-    })
+    $middleware->validateCsrfTokens(
+        except: ['midtrans/notification']
+    );
+
+    $middleware->alias([
+        'admin' => \App\Http\Middleware\AdminMiddleware::class,
+
+        'payment.access' => \App\Http\Middleware\PaymentAccessMiddleware::class,
+    ]);
+
+})
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

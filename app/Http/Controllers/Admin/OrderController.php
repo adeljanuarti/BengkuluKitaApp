@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class OrderController extends Controller
 {
+    // Menampilkan daftar pesanan
     public function index(Request $request): View
     {
         $orders = Order::with('items')
@@ -24,13 +25,11 @@ class OrderController extends Controller
 
         return view(
             'admin.orders.index',
-            compact(
-                'orders',
-                'newOrders'
-            )
+            compact('orders', 'newOrders')
         );
     }
 
+    // Menampilkan detail pesanan
     public function show(Order $order): View
     {
         $order->load('items.product');
@@ -41,6 +40,7 @@ class OrderController extends Controller
         );
     }
 
+    // Memperbarui status pesanan
     public function updateStatus(
         Request $request,
         Order $order
@@ -54,8 +54,7 @@ class OrderController extends Controller
         ]);
 
         $order->update([
-            'status' =>
-                $validated['status'],
+            'status' => $validated['status'],
         ]);
 
         return back()->with(
@@ -64,6 +63,7 @@ class OrderController extends Controller
         );
     }
 
+    // Memperbarui status pembayaran
     public function updatePaymentStatus(
         Request $request,
         Order $order
@@ -77,8 +77,7 @@ class OrderController extends Controller
         ]);
 
         $data = [
-            'payment_status' =>
-                $validated['payment_status'],
+            'payment_status' => $validated['payment_status'],
         ];
 
         if (
@@ -94,5 +93,20 @@ class OrderController extends Controller
             'success',
             'Status pembayaran berhasil diperbarui.'
         );
+    }
+
+    // Menghapus pesanan
+    public function destroy(Order $order): RedirectResponse
+    {
+        $order->items()->delete();
+
+        $order->delete();
+
+        return redirect()
+            ->route('admin.orders.index')
+            ->with(
+                'success',
+                'Pesanan berhasil dihapus.'
+            );
     }
 }

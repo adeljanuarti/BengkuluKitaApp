@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -44,11 +45,20 @@
 
     <main class="max-w-7xl mx-auto px-6 py-8">
 
-        {{-- FLASH --}}
+        {{-- FLASH SUCCESS --}}
         @if(session('success'))
 
             <div class="mb-6 bg-green-50 border border-green-200 text-green-700 px-5 py-4 rounded-2xl">
                 {{ session('success') }}
+            </div>
+
+        @endif
+
+        {{-- FLASH ERROR --}}
+        @if(session('error'))
+
+            <div class="mb-6 bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl">
+                {{ session('error') }}
             </div>
 
         @endif
@@ -198,6 +208,18 @@
 
                 </div>
 
+                <div class="mb-5">
+
+                    <p class="text-sm text-gray-500">
+                        Status Pembayaran
+                    </p>
+
+                    <p class="font-semibold mt-1">
+                        {{ $order->payment_status }}
+                    </p>
+
+                </div>
+
                 <form
                     method="POST"
                     action="{{ route('admin.orders.payment', $order) }}"
@@ -210,7 +232,7 @@
                     <div>
 
                         <label class="block text-sm font-semibold mb-2">
-                            Status Pembayaran
+                            Ubah Status Pembayaran
                         </label>
 
                         <select
@@ -252,6 +274,89 @@
         </div>
 
 
+        {{-- BUKTI PEMBAYARAN --}}
+        <div class="bg-white rounded-3xl shadow-sm border border-[#e2d5c3] mt-6 p-6">
+
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+
+                <div>
+                    <h3 class="text-xl font-bold">
+                        Bukti Pembayaran
+                    </h3>
+
+                    <p class="text-sm text-gray-500 mt-1">
+                        Bukti pembayaran yang dikirim oleh pelanggan.
+                    </p>
+                </div>
+
+                @if($order->payment_proof)
+                    <span class="inline-flex px-4 py-2 rounded-full bg-green-100 text-green-700 text-sm font-semibold">
+                        Bukti sudah dikirim
+                    </span>
+                @else
+                    <span class="inline-flex px-4 py-2 rounded-full bg-yellow-100 text-yellow-700 text-sm font-semibold">
+                        Belum ada bukti
+                    </span>
+                @endif
+
+            </div>
+
+
+            @if($order->payment_proof)
+
+                <div class="border border-[#e2d5c3] rounded-2xl p-4 bg-[#faf7f2]">
+
+                    <p class="text-sm font-semibold mb-4">
+                        Preview Bukti Pembayaran
+                    </p>
+
+                    <div class="flex justify-center">
+
+                        <img
+                            src="{{ asset('storage/' . $order->payment_proof) }}"
+                            alt="Bukti Pembayaran"
+                            class="max-w-full md:max-w-md max-h-[600px] object-contain rounded-2xl border border-[#e2d5c3] shadow-sm"
+                        >
+
+                    </div>
+
+                    <div class="text-center mt-5">
+
+                        <a
+                            href="{{ asset('storage/' . $order->payment_proof) }}"
+                            target="_blank"
+                            class="inline-block px-5 py-3 bg-[#29251f] text-white rounded-xl font-semibold hover:bg-[#8b6b45] transition"
+                        >
+                            Lihat Bukti Ukuran Penuh
+                        </a>
+
+                    </div>
+
+                </div>
+
+            @else
+
+                <div class="bg-[#f7f0e4] rounded-2xl p-8 text-center">
+
+                    <div class="text-4xl mb-3">
+                        🧾
+                    </div>
+
+                    <p class="font-semibold">
+                        Belum ada bukti pembayaran
+                    </p>
+
+                    <p class="text-sm text-gray-500 mt-1">
+                        Pelanggan belum mengunggah bukti pembayaran QRIS.
+                    </p>
+
+                </div>
+
+            @endif
+
+        </div>
+
+
         {{-- ORDER ITEMS --}}
         <div class="bg-white rounded-3xl shadow-sm border border-[#e2d5c3] mt-6 overflow-hidden">
 
@@ -273,7 +378,7 @@
                         <div>
 
                             <h4 class="font-bold">
-                                {{ $item->product_name }}
+                                {{ $item->product_name ?? $item->product?->name ?? 'Produk' }}
                             </h4>
 
                             <p class="text-sm text-gray-500 mt-1">
@@ -285,7 +390,7 @@
                         </div>
 
                         <p class="font-bold text-[#8b6b45]">
-                            Rp {{ number_format($item->subtotal, 0, ',', '.') }}
+                            Rp {{ number_format($item->price * $item->quantity, 0, ',', '.') }}
                         </p>
 
                     </div>
@@ -313,4 +418,5 @@
     </main>
 
 </body>
+
 </html>
