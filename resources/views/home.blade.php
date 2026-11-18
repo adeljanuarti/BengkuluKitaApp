@@ -177,6 +177,15 @@
                         </a>
 
 
+                        {{-- LINK PESANAN SAYA (DESKTOP) --}}
+                        <a
+                            href="{{ route('orders.index') }}"
+                            class="text-sm font-semibold text-[#5e5143] hover:text-[#8b6b45] transition"
+                        >
+                            Pesanan Saya
+                        </a>
+
+
                         <a
                             href="{{ route('cart.index') }}"
                             class="relative text-sm font-semibold text-[#5e5143] hover:text-[#8b6b45] transition"
@@ -263,6 +272,15 @@
                         </a>
 
                     @else
+
+                        {{-- LINK PESANAN SAYA (MOBILE) --}}
+                        <a
+                            href="{{ route('orders.index') }}"
+                            class="w-10 h-10 rounded-xl bg-[#f5e7c7] flex items-center justify-center"
+                            title="Pesanan Saya"
+                        >
+                            📦
+                        </a>
 
                         <a
                             href="{{ route('cart.index') }}"

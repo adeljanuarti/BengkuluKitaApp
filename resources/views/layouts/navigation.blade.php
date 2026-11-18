@@ -1,273 +1,193 @@
+@php
+    $settings  = $settings ?? \App\Models\SiteSetting::first();
+    $cartCount = collect(session('cart', []))->sum('quantity');
+    $isLogin   = auth()->check();
+    $isAdmin   = $isLogin && auth()->user()->role === 'admin';
 
-<nav x-data="{ open: false }" class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+    $linkBase   = 'text-sm font-semibold transition';
+    $linkNormal = 'text-[#5e5143] hover:text-[#8b6b45]';
+    $linkActive = 'text-[#8b6b45]';
+@endphp
 
-    <!-- Primary Navigation Menu -->
+<header class="sticky top-0 z-50 bg-[#fffaf2]/95 backdrop-blur border-b border-[#e2d5c3]">
+
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        <div class="flex justify-between h-16">
+        <div class="h-20 flex items-center justify-between">
 
-            <div class="flex">
+            {{-- LOGO (admin ke dashboard, lainnya ke home) --}}
+            <a href="{{ $isAdmin ? route('admin.dashboard') : route('home') }}" class="flex items-center gap-3 group">
 
-                <!-- Logo -->
-                <div class="shrink-0 flex items-center">
+                <div class="w-12 h-12 rounded-xl bg-[#f5e7c7] border border-[#dfcfb8] flex items-center justify-center overflow-hidden shadow-sm group-hover:-translate-y-1 group-hover:shadow-md transition-all duration-200">
 
-                    @auth
-                        @if(auth()->user()->role === 'admin')
-                            <a href="{{ route('admin.dashboard') }}">
-                        @else
-                            <a href="{{ route('home') }}">
-                        @endif
+                    @if(!empty($settings?->logo))
+                        <img
+                            src="{{ asset('storage/' . $settings->logo) }}"
+                            alt="{{ $settings->business_name }}"
+                            class="w-[78%] h-[78%] object-contain"
+                        >
                     @else
-                        <a href="{{ route('home') }}">
-                    @endauth
+                        <img
+                            src="{{ asset('images/logo-kue.png') }}"
+                            alt="Logo BengkuluKita"
+                            class="w-[78%] h-[78%] object-contain"
+                        >
+                    @endif
 
-                        <x-application-logo
-                            class="block h-9 w-auto fill-current text-gray-800 dark:text-gray-200"
-                        />
+                </div>
+
+                <div class="leading-tight">
+                    <div class="text-xl font-extrabold tracking-tight text-[#29251f]">
+                        {{ $settings->business_name ?? 'BengkuluKita' }}
+                    </div>
+                    <div class="text-[10px] uppercase tracking-[0.18em] font-semibold text-[#8b6b45]">
+                        Oleh-Oleh Bengkulu
+                    </div>
+                </div>
+
+            </a>
+
+
+            {{-- DESKTOP --}}
+            <nav class="hidden md:flex items-center gap-7">
+
+                @if($isAdmin)
+
+                    <a href="{{ route('admin.dashboard') }}"
+                       class="{{ $linkBase }} {{ request()->routeIs('admin.dashboard') ? $linkActive : $linkNormal }}">
+                        Dashboard Admin
+                    </a>
+
+                    <a href="{{ route('admin.products.index') }}"
+                       class="{{ $linkBase }} {{ request()->routeIs('admin.products.*') ? $linkActive : $linkNormal }}">
+                        Produk
+                    </a>
+
+                    <a href="{{ route('admin.orders.index') }}"
+                       class="{{ $linkBase }} {{ request()->routeIs('admin.orders.*') ? $linkActive : $linkNormal }}">
+                        Pesanan
+                    </a>
+
+                @elseif($isLogin)
+
+                    <a href="{{ route('home') }}"
+                       class="{{ $linkBase }} {{ request()->routeIs('home') ? $linkActive : $linkNormal }}">
+                        Beranda
+                    </a>
+
+                    <a href="{{ route('products.index') }}"
+                       class="{{ $linkBase }} {{ request()->routeIs('products.*') ? $linkActive : $linkNormal }}">
+                        Belanja
+                    </a>
+
+                    <a href="{{ route('orders.index') }}"
+                       class="{{ $linkBase }} {{ request()->routeIs('orders.*') ? $linkActive : $linkNormal }}">
+                        Pesanan Saya
+                    </a>
+
+                    <a href="{{ route('cart.index') }}"
+                       class="relative {{ $linkBase }} {{ request()->routeIs('cart.*') ? $linkActive : $linkNormal }}">
+
+                        Keranjang
+
+                        @if($cartCount > 0)
+                            <span class="absolute -top-3 -right-5 min-w-5 h-5 px-1 rounded-full bg-[#8b6b45] text-white text-[10px] font-black flex items-center justify-center">
+                                {{ $cartCount }}
+                            </span>
+                        @endif
 
                     </a>
 
-                </div>
-
-                <!-- Navigation Links -->
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-
-                    @auth
-
-                        @if(auth()->user()->role === 'admin')
-
-                            <x-nav-link
-                                :href="route('admin.dashboard')"
-                                :active="request()->routeIs('admin.dashboard')"
-                            >
-                                Dashboard Admin
-                            </x-nav-link>
-
-                        @else
-
-                            <x-nav-link
-                                :href="route('home')"
-                                :active="request()->routeIs('home')"
-                            >
-                                Home
-                            </x-nav-link>
-
-                            <!-- Pesanan Saya -->
-                            <x-nav-link
-                                :href="route('orders.index')"
-                                :active="request()->routeIs('orders.*')"
-                            >
-                                Pesanan Saya
-                            </x-nav-link>
-
-                        @endif
-
-                    @else
-
-                        <x-nav-link
-                            :href="route('home')"
-                            :active="request()->routeIs('home')"
-                        >
-                            Home
-                        </x-nav-link>
-
-                    @endauth
-
-                </div>
-
-            </div>
-
-            <!-- Settings Dropdown -->
-            @auth
-
-                <div class="hidden sm:flex sm:items-center sm:ms-6">
-
-                    <x-dropdown align="right" width="48">
-
-                        <x-slot name="trigger">
-
-                            <button
-                                class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition ease-in-out duration-150"
-                            >
-
-                                <div>
-                                    {{ Auth::user()->name }}
-                                </div>
-
-                                <div class="ms-1">
-
-                                    <svg
-                                        class="fill-current h-4 w-4"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 20 20"
-                                    >
-                                        <path
-                                            fill-rule="evenodd"
-                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414z"
-                                            clip-rule="evenodd"
-                                        />
-                                    </svg>
-
-                                </div>
-
-                            </button>
-
-                        </x-slot>
-
-                        <x-slot name="content">
-
-                            <form method="POST" action="{{ route('logout') }}">
-
-                                @csrf
-
-                                <x-dropdown-link
-                                    :href="route('logout')"
-                                    onclick="event.preventDefault(); this.closest('form').submit();"
-                                >
-                                    {{ __('Log Out') }}
-                                </x-dropdown-link>
-
-                            </form>
-
-                        </x-slot>
-
-                    </x-dropdown>
-
-                </div>
-
-            @endauth
-
-            <!-- Hamburger -->
-            <div class="-me-2 flex items-center sm:hidden">
-
-                <button
-                    @click="open = ! open"
-                    class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900 focus:outline-none focus:bg-gray-100 dark:focus:bg-gray-900 focus:text-gray-500 dark:focus:text-gray-400 transition duration-150 ease-in-out"
-                >
-
-                    <svg
-                        class="fill-current h-6 w-6"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-
-                        <path
-                            :class="{ 'hidden': open, 'inline-flex': !open }"
-                            class="inline-flex"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M4 6h16M4 12h16M4 18h16"
-                        />
-
-                        <path
-                            :class="{ 'hidden': !open, 'inline-flex': open }"
-                            class="hidden"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12"
-                        />
-
-                    </svg>
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <!-- Responsive Navigation Menu -->
-    <div
-        :class="{ 'block': open, 'hidden': !open }"
-        class="hidden sm:hidden"
-    >
-
-        <div class="pt-2 pb-3 space-y-1">
-
-            @auth
-
-                @if(auth()->user()->role === 'admin')
-
-                    <x-responsive-nav-link
-                        :href="route('admin.dashboard')"
-                        :active="request()->routeIs('admin.dashboard')"
-                    >
-                        Dashboard Admin
-                    </x-responsive-nav-link>
+                    <span class="text-sm font-semibold text-[#8b6b45]">
+                        Hai, {{ auth()->user()->name }}
+                    </span>
 
                 @else
 
-                    <x-responsive-nav-link
-                        :href="route('home')"
-                        :active="request()->routeIs('home')"
-                    >
-                        Home
-                    </x-responsive-nav-link>
-
-                    <!-- Pesanan Saya Mobile -->
-                    <x-responsive-nav-link
-                        :href="route('orders.index')"
-                        :active="request()->routeIs('orders.*')"
-                    >
-                        Pesanan Saya
-                    </x-responsive-nav-link>
+                    <a href="{{ route('home') }}"
+                       class="{{ $linkBase }} {{ request()->routeIs('home') ? $linkActive : $linkNormal }}">
+                        Beranda
+                    </a>
 
                 @endif
 
-            @else
 
-                <x-responsive-nav-link
-                    :href="route('home')"
-                    :active="request()->routeIs('home')"
-                >
-                    Home
-                </x-responsive-nav-link>
+                @if($isLogin)
 
-            @endauth
-
-        </div>
-
-        <!-- Responsive Settings Options -->
-        @auth
-
-            <div class="pt-4 pb-1 border-t border-gray-200 dark:border-gray-600">
-
-                <div class="px-4">
-
-                    <div class="font-medium text-base text-gray-800 dark:text-gray-200">
-                        {{ Auth::user()->name }}
-                    </div>
-
-                    <div class="font-medium text-sm text-gray-500">
-                        {{ Auth::user()->email }}
-                    </div>
-
-                </div>
-
-                <div class="mt-3 space-y-1">
-
-                    <form method="POST" action="{{ route('logout') }}">
-
+                    <form method="POST" action="{{ route('logout') }}" class="inline">
                         @csrf
-
-                        <x-responsive-nav-link
-                            :href="route('logout')"
-                            onclick="event.preventDefault(); this.closest('form').submit();"
-                        >
-                            {{ __('Log Out') }}
-                        </x-responsive-nav-link>
-
+                        <button type="submit" class="text-sm font-semibold text-red-600 hover:text-red-800 transition">
+                            Logout
+                        </button>
                     </form>
 
-                </div>
+                @else
+
+                    <a href="{{ route('login') }}"
+                       class="px-4 py-2 rounded-xl bg-[#29251f] text-white text-sm font-semibold hover:bg-[#8b6b45] transition">
+                        Login
+                    </a>
+
+                @endif
+
+            </nav>
+
+
+            {{-- MOBILE --}}
+            <div class="flex items-center gap-2 md:hidden">
+
+                @if($isAdmin)
+
+                    <a href="{{ route('admin.dashboard') }}"
+                       class="px-4 py-2 rounded-xl bg-[#29251f] text-white text-sm font-semibold">
+                        Admin
+                    </a>
+
+                @elseif($isLogin)
+
+                    <a href="{{ route('orders.index') }}"
+                       class="w-10 h-10 rounded-xl bg-[#f5e7c7] flex items-center justify-center"
+                       title="Pesanan Saya">
+                        📦
+                    </a>
+
+                    <a href="{{ route('cart.index') }}"
+                       class="relative w-10 h-10 rounded-xl bg-[#f5e7c7] flex items-center justify-center">
+
+                        🛒
+
+                        @if($cartCount > 0)
+                            <span class="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-[#8b6b45] text-white text-[10px] font-black flex items-center justify-center">
+                                {{ $cartCount }}
+                            </span>
+                        @endif
+
+                    </a>
+
+                @endif
+
+                @if($isLogin)
+
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button type="submit" class="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold">
+                            Logout
+                        </button>
+                    </form>
+
+                @else
+
+                    <a href="{{ route('login') }}"
+                       class="px-4 py-2 rounded-xl bg-[#29251f] text-white text-sm font-semibold">
+                        Login
+                    </a>
+
+                @endif
 
             </div>
 
-        @endauth
+        </div>
 
     </div>
 
-</nav>
+</header>
